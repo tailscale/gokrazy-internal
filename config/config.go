@@ -49,6 +49,12 @@ type UpdateStruct struct {
 	// - "self-signed", creating TLS certificates if needed
 	UseTLS string `json:",omitempty"` // -tls
 
+	// NoPassword, if true, prevents any password from being included in the
+	// image. The only access will be over the serial console and the web
+	// interface will only accept connections from localhost, which userspace
+	// programs can choose to tunnel in.
+	NoPassword bool `json:",omitempty"`
+
 	HTTPPort     string `json:",omitempty"` // -http_port
 	HTTPSPort    string `json:",omitempty"` // -https_port
 	HTTPPassword string `json:",omitempty"` // http-password.txt
@@ -61,7 +67,8 @@ func (u *UpdateStruct) WithFallbackToHostSpecific(host string) (*UpdateStruct, e
 		u = &UpdateStruct{}
 	}
 	result := UpdateStruct{
-		Hostname: u.Hostname,
+		Hostname:   u.Hostname,
+		NoPassword: u.NoPassword,
 	}
 
 	if u.HTTPPort != "" {
@@ -81,14 +88,16 @@ func (u *UpdateStruct) WithFallbackToHostSpecific(host string) (*UpdateStruct, e
 		result.HTTPSPort = result.HTTPPort
 	}
 
-	if u.HTTPPassword != "" {
-		result.HTTPPassword = u.HTTPPassword
-	} else {
-		pw, err := HostnameSpecific(host).ReadFile("http-password.txt")
-		if err != nil && !os.IsNotExist(err) {
-			return nil, err
+	if !u.NoPassword {
+		if u.HTTPPassword != "" {
+			result.HTTPPassword = u.HTTPPassword
+		} else {
+			pw, err := HostnameSpecific(host).ReadFile("http-password.txt")
+			if err != nil && !os.IsNotExist(err) {
+				return nil, err
+			}
+			result.HTTPPassword = pw
 		}
-		result.HTTPPassword = pw
 	}
 
 	// Intentionally no fallback for CertPEM and KeyPEM at this stage: their
